@@ -333,13 +333,20 @@ mod hook {
 
     static STATE: Mutex<Option<HookState>> = Mutex::new(None);
 
+    /// Diagnostics only: KOTEV_ACCEPT_INJECTED=1 lets scripted (SendInput) keys drive the hook.
+    fn accept_injected() -> bool {
+        static ACCEPT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *ACCEPT.get_or_init(|| std::env::var_os("KOTEV_ACCEPT_INJECTED").is_some())
+    }
+
     unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         if code == HC_ACTION as i32 {
             let kb = &*(lparam as *const KBDLLHOOKSTRUCT);
             let message = wparam as u32;
             let is_down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
             let is_up = message == WM_KEYUP || message == WM_SYSKEYUP;
-            if (is_down || is_up) && kb.flags & LLKHF_INJECTED == 0 && handle(kb.vkCode, is_down) {
+            let injected = kb.flags & LLKHF_INJECTED != 0;
+            if (is_down || is_up) && (!injected || accept_injected()) && handle(kb.vkCode, is_down) {
                 return 1;
             }
         }
@@ -365,6 +372,7 @@ mod hook {
         }
         let outcome = state.engine.handle(vk, is_down);
         if let Some(action) = outcome.action {
+            crate::log::write(&format!("hotkey {action:?} (vk {vk:#04X})"));
             let _ = state.tx.send(HotkeyMsg::Action(action));
         }
         outcome.swallow
@@ -377,9 +385,10 @@ mod hook {
             .spawn(|| unsafe {
                 let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_proc), std::ptr::null_mut(), 0);
                 if hook.is_null() {
-                    crate::log::write("failed to install keyboard hook");
+                    crate::log::write(&format!("failed to install keyboard hook: {}", std::io::Error::last_os_error()));
                     return;
                 }
+                crate::log::write(&format!("keyboard hook installed (accept injected: {})", accept_injected()));
                 let mut msg: MSG = std::mem::zeroed();
                 while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {}
             })

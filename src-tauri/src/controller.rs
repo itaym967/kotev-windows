@@ -318,6 +318,7 @@ impl Controller {
     }
 
     fn fail(self: &Arc<Self>, message: String) {
+        crate::log::write(&format!("failed: {message}"));
         let audio = {
             let mut inner = self.lock();
             inner.session += 1;
