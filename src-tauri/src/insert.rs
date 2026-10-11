@@ -281,7 +281,7 @@ mod win {
 }
 
 #[cfg(windows)]
-pub use win::{paste, type_text};
+pub use win::{foreground_process_name, paste, type_text};
 
 #[cfg(test)]
 mod tests {

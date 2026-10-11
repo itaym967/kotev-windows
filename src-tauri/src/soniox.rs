@@ -127,12 +127,20 @@ async fn session(
     on_event(SonioxEvent::Connected);
 
     let mut audio_open = true;
+    let (mut bytes_sent, mut responses, mut final_chars) = (0usize, 0usize, 0usize);
     loop {
         tokio::select! {
             chunk = audio.recv(), if audio_open => match chunk {
-                Some(bytes) => sink.send(Message::Binary(bytes.into())).await.map_err(|e| e.to_string())?,
+                Some(bytes) => {
+                    bytes_sent += bytes.len();
+                    sink.send(Message::Binary(bytes.into())).await.map_err(|e| e.to_string())?
+                }
                 None => {
                     audio_open = false;
+                    crate::log::write(&format!(
+                        "soniox: audio ended after {bytes_sent} bytes ({:.1} s), finalizing",
+                        bytes_sent as f64 / (SAMPLE_RATE as f64 * 2.0)
+                    ));
                     sink.send(Message::Binary(vec![0u8; TRAILING_SILENCE_BYTES].into()))
                         .await.map_err(|e| e.to_string())?;
                     sink.send(Message::Text(r#"{"type":"finalize"}"#.to_string().into()))
@@ -141,7 +149,9 @@ async fn session(
             },
             message = stream.next() => match message {
                 Some(Ok(Message::Text(text))) => {
+                    responses += 1;
                     let parsed = parse_response(text.as_ref())?;
+                    final_chars += parsed.final_text.chars().count();
                     if !parsed.final_text.is_empty() || !parsed.provisional.is_empty() {
                         on_event(SonioxEvent::Transcript {
                             final_text: parsed.final_text,
@@ -149,6 +159,9 @@ async fn session(
                         });
                     }
                     if parsed.done {
+                        crate::log::write(&format!(
+                            "soniox: finished after {responses} responses, {final_chars} final chars"
+                        ));
                         let _ = sink.close().await;
                         on_event(SonioxEvent::Finished);
                         return Ok(());
@@ -213,5 +226,36 @@ mod tests {
         assert_eq!(v["sample_rate"], 16000);
         assert_eq!(v["language_hints"][0], "he");
         assert_eq!(v["context"]["terms"][0], "VS Code");
+    }
+
+    /// Streams a 16 kHz mono 16-bit WAV to Soniox with the stored API key.
+    /// Run with: KOTEV_TEST_WAV=path cargo test live_soniox -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore]
+    async fn live_soniox() {
+        let path = std::env::var("KOTEV_TEST_WAV").expect("KOTEV_TEST_WAV");
+        let wav = std::fs::read(path).unwrap();
+        let pcm = wav[44..].to_vec();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        for chunk in pcm.chunks(3200) {
+            tx.send(chunk.to_vec()).unwrap();
+        }
+        drop(tx);
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = events.clone();
+        let cfg = SonioxConfig { api_key: crate::settings::load_api_key(), language_hint: "en".into() };
+        assert!(!cfg.api_key.is_empty(), "no API key stored");
+        run(cfg, rx, move |e| sink.lock().unwrap().push(e)).await;
+        let events = events.lock().unwrap();
+        let text: String = events
+            .iter()
+            .filter_map(|e| match e {
+                SonioxEvent::Transcript { final_text, .. } => Some(final_text.as_str()),
+                _ => None,
+            })
+            .collect();
+        println!("events: {:?}", events.last());
+        println!("transcript: {text}");
+        assert!(!text.trim().is_empty());
     }
 }

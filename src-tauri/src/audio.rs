@@ -125,12 +125,27 @@ fn build_stream(
     let supported = device.default_input_config().map_err(|e| e.to_string())?;
     let format = supported.sample_format();
     let config: cpal::StreamConfig = supported.into();
+    crate::log::write(&format!(
+        "microphone '{}': {} Hz, {} ch, {format}",
+        device.name().unwrap_or_default(),
+        config.sample_rate.0,
+        config.channels
+    ));
     match format {
         SampleFormat::F32 => input_stream::<f32>(&device, &config, on_chunk, on_level),
         SampleFormat::I16 => input_stream::<i16>(&device, &config, on_chunk, on_level),
         SampleFormat::I32 => input_stream::<i32>(&device, &config, on_chunk, on_level),
         SampleFormat::U16 => input_stream::<u16>(&device, &config, on_chunk, on_level),
         other => Err(format!("unsupported sample format {other}")),
+    }
+}
+
+/// Logs the loudest sample of a recording when the stream (and its callback) is dropped.
+struct PeakLog(f32);
+
+impl Drop for PeakLog {
+    fn drop(&mut self) {
+        crate::log::write(&format!("microphone peak level {:.3} (1.0 = full scale)", self.0));
     }
 }
 
@@ -148,6 +163,7 @@ where
     let mut resampler = Resampler::new(config.sample_rate.0, SAMPLE_RATE);
     let mut mono = Vec::<f32>::new();
     let mut last_level = Instant::now();
+    let mut peak = PeakLog(0.0);
     device
         .build_input_stream(
             config,
@@ -156,6 +172,10 @@ where
                 mono.extend(data.chunks(channels).map(|frame| {
                     frame.iter().map(|s| f32::from_sample(*s)).sum::<f32>() / channels as f32
                 }));
+                // Borrow the whole guard so the closure owns it (not just the f32 field),
+                // and it is dropped, and logged, with the stream.
+                let peak = &mut peak;
+                peak.0 = mono.iter().fold(peak.0, |p, s| p.max(s.abs()));
                 if last_level.elapsed() >= Duration::from_millis(50) && !mono.is_empty() {
                     last_level = Instant::now();
                     let rms = (mono.iter().map(|s| s * s).sum::<f32>() / mono.len() as f32).sqrt();

@@ -70,9 +70,15 @@ pub fn show(app: &AppHandle, kind: Kind, label: String) {
 
 pub fn hide(app: &AppHandle) {
     GENERATION.fetch_add(1, Ordering::SeqCst);
-    if let Some(win) = window(app) {
-        let _ = win.hide();
+    let Some(win) = window(app) else { return };
+    // Shown with a raw ShowWindow, so Tauri still thinks it's hidden and would ignore hide().
+    #[cfg(windows)]
+    if let Ok(hwnd) = win.hwnd() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+        unsafe { ShowWindow(hwnd.0 as _, SW_HIDE) };
+        return;
     }
+    let _ = win.hide();
 }
 
 pub fn level(app: &AppHandle, value: f32) {

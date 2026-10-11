@@ -35,6 +35,13 @@ pub(crate) fn hotkeys_update(push_to_talk: Shortcut, hands_free: Shortcut) {
 pub(crate) fn insert_text(text: &str, mode: InsertMode) -> Result<(), String> {
     #[cfg(windows)]
     {
+        // Dictation started from Kotev's own window: the transcript is already shown there.
+        let exe = std::env::current_exe().ok();
+        let own_name = exe.as_ref().and_then(|p| p.file_name()).and_then(|n| n.to_str()).unwrap_or("Kotev.exe");
+        if insert::foreground_process_name().eq_ignore_ascii_case(own_name) {
+            log::write("Kotev is in the foreground; leaving the transcript in the window");
+            return Ok(());
+        }
         match mode {
             InsertMode::Paste => insert::paste(text),
             InsertMode::Type => insert::type_text(text),
