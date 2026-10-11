@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Kotev",
+  "mainBinaryName": "Kotev",
+  "version": "0.1.0",
+  "identifier": "io.github.quegenx.kotev.win",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Kotev",
+        "url": "index.html",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 980,
+        "minHeight": 650,
+        "center": true,
+        "visible": false
+      },
+      {
+        "label": "overlay",
+        "title": "Kotev overlay",
+        "url": "overlay.html",
+        "width": 420,
+        "height": 64,
+        "visible": false,
+        "focus": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "publisher": "Kotev contributors",
+    "shortDescription": "Push-to-talk dictation for Hebrew and English",
+    "copyright": "MIT License",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["Hebrew", "English"],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

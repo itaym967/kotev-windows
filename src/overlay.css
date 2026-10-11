@@ -1,0 +1,52 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+#root {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.pill {
+  box-sizing: border-box;
+  height: 52px;
+  min-width: 190px;
+  max-width: 420px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #f2f1ef;
+  border: 1px solid #e2dfd8;
+  border-radius: 12px;
+  font: 600 15px "Segoe UI Variable Text", "Segoe UI", Arial, sans-serif;
+  color: #3a3833;
+}
+
+.label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f08a24;
+  transition: box-shadow 80ms linear;
+}
+
+.listening .dot,
+.error .dot {
+  background: #e52d27;
+}
