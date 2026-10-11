@@ -14,6 +14,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Kotev",
         "url": "index.html",
         "width": 1180,
@@ -25,6 +26,7 @@
       },
       {
         "label": "overlay",
+        "create": false,
         "title": "Kotev overlay",
         "url": "overlay.html",
         "width": 420,

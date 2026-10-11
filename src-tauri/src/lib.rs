@@ -175,6 +175,11 @@ pub fn run() {
             let settings = controller.settings();
             app.manage(controller);
 
+            // Windows are created only now, so commands from the UI always find the controller.
+            for config in &app.config().app.windows {
+                tauri::WebviewWindowBuilder::from_config(&handle, config)?.build()?;
+            }
+
             tray::create(&handle)?;
             overlay::configure(&handle);
 
